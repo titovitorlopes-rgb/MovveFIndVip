@@ -834,6 +834,156 @@ textarea {
   color: var(--text-muted);
 }
 
+/* Advice & Recommended Channel Pill */
+.contact-advice-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-top: 0.4rem;
+  margin-bottom: 0.25rem;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.contact-advice-pill.advice-gmail {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+.contact-advice-pill.advice-whatsapp {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+
+.contact-advice-pill.advice-instagram {
+  background: #fdf2f8;
+  border-color: #f472b6;
+  color: #9d174d;
+}
+
+.contact-advice-pill.advice-phone {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.contact-advice-pill .advice-icon {
+  font-size: 0.85rem;
+}
+
+.contact-advice-pill .advice-title {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.contact-advice-pill .advice-sub {
+  font-weight: 500;
+  opacity: 0.85;
+  font-size: 0.72rem;
+}
+
+/* Gmail Cell Card */
+.gmail-cell-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--bg-card, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  width: 100%;
+}
+
+.gmail-cell-card.is-recommended-channel {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.25);
+}
+
+.gmail-top-row {
+  display: flex;
+  align-items: center;
+}
+
+.gmail-email-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1e293b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  word-break: break-all;
+}
+
+.gmail-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.btn-gmail {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #ea4335;
+  color: #ffffff;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(234, 67, 53, 0.2);
+}
+
+.btn-gmail:hover {
+  background: #d93025;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.btn-copy-gmail {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-copy-gmail:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: #94a3b8;
+}
+
+.btn-copy-gmail.is-copied {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #6ee7b7;
+}
+
+.is-recommended-channel .btn-instagram-verified {
+  box-shadow: 0 0 0 2px rgba(225, 48, 108, 0.25);
+}
+
+.btn-rec-highlight {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4) !important;
+}
+
 /* Business Info Cell */
 .biz-name {
   font-weight: 700;
@@ -1256,6 +1406,27 @@ textarea {
     min-height: 44px;
     justify-content: center;
     font-size: 0.875rem;
+  }
+
+  .gmail-cell-card {
+    width: 100%;
+  }
+
+  .gmail-actions-row {
+    width: 100%;
+  }
+
+  .btn-gmail {
+    flex: 1;
+    min-height: 42px;
+    justify-content: center;
+    font-size: 0.875rem;
+  }
+
+  .btn-copy-gmail {
+    min-height: 42px;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.8125rem;
   }
 
   .lead-status-select {

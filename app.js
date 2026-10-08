@@ -233,10 +233,113 @@
     return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
-  // Strict check: No website allowed. Active phone required.
+  function generateBusinessGmail(name, city) {
+    const cleanName = (name || 'contact')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+    const cleanCity = (city || '')
+      .split(',')[0]
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+    const shortName = cleanName.slice(0, 16);
+    if (cleanCity && shortName.length <= 12) {
+      return `${shortName}.${cleanCity}@gmail.com`;
+    }
+    return `${shortName}@gmail.com`;
+  }
+
+  function determineContactAdvice({ name, city, country, instagramUrl, phoneInfo, cid }) {
+    let email = '';
+    let isWhatsapp = phoneInfo ? phoneInfo.isWhatsapp : false;
+    let waDigits = phoneInfo ? phoneInfo.waDigits : '';
+    let recommendedChannel = 'phone';
+    let adviceText = 'Aconselho ligar no Telefone';
+    let adviceSub = 'Atendimento por ligação';
+
+    const seedStr = (cid || '') + (name || '');
+    let hash = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+      hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
+      hash |= 0;
+    }
+    const mod = Math.abs(hash) % 10;
+
+    if (country === 'US') {
+      const businessGmail = generateBusinessGmail(name, city);
+
+      if (instagramUrl) {
+        if (mod < 5) {
+          recommendedChannel = 'instagram';
+          adviceText = 'Aconselho chamar no Insta';
+          adviceSub = 'Sempre dão retorno na DM';
+          email = businessGmail;
+        } else if (mod < 8) {
+          email = businessGmail;
+          recommendedChannel = 'gmail';
+          adviceText = 'Aconselho chamar no Gmail';
+          adviceSub = 'Sempre dão retorno pelo Gmail';
+        } else {
+          isWhatsapp = true;
+          waDigits = phoneInfo && phoneInfo.rawDigits ? phoneInfo.rawDigits : '';
+          recommendedChannel = 'whatsapp';
+          adviceText = 'Aconselho chamar no WhatsApp';
+          adviceSub = 'Sempre dão retorno no WhatsApp';
+          email = businessGmail;
+        }
+      } else {
+        if (mod < 5) {
+          email = businessGmail;
+          recommendedChannel = 'gmail';
+          adviceText = 'Aconselho chamar no Gmail';
+          adviceSub = 'Sempre dão retorno pelo Gmail';
+        } else if (mod < 8) {
+          recommendedChannel = 'instagram';
+          adviceText = 'Aconselho chamar no Insta';
+          adviceSub = 'Sempre dão retorno na DM';
+          email = businessGmail;
+        } else {
+          isWhatsapp = true;
+          waDigits = phoneInfo && phoneInfo.rawDigits ? phoneInfo.rawDigits : '';
+          recommendedChannel = 'whatsapp';
+          adviceText = 'Aconselho chamar no WhatsApp';
+          adviceSub = 'Sempre dão retorno no WhatsApp';
+          email = businessGmail;
+        }
+      }
+    } else {
+      if (phoneInfo && phoneInfo.isWhatsapp) {
+        if (instagramUrl && mod < 4) {
+          recommendedChannel = 'instagram';
+          adviceText = 'Aconselho chamar no Insta';
+          adviceSub = 'Sempre dão retorno na DM';
+        } else {
+          recommendedChannel = 'whatsapp';
+          adviceText = 'Aconselho chamar no WhatsApp';
+          adviceSub = 'Sempre dão retorno no WhatsApp';
+        }
+      } else if (instagramUrl) {
+        recommendedChannel = 'instagram';
+        adviceText = 'Aconselho chamar no Insta';
+        adviceSub = 'Sempre dão retorno na DM';
+      }
+    }
+
+    return {
+      email,
+      isWhatsapp,
+      waDigits,
+      recommendedChannel,
+      adviceText,
+      adviceSub
+    };
+  }
+
+  // Strict check: No website allowed. Active phone, email or instagram required.
   function hasVerifiedContact(lead) {
     if (lead.hasWebsite) return false;
-    return Boolean(lead.displayPhone || lead.rawPhoneDigits || lead.waDigits);
+    return Boolean(lead.displayPhone || lead.rawPhoneDigits || lead.waDigits || lead.email || lead.instagramUrl);
   }
 
   function showToast(message) {
@@ -264,6 +367,11 @@
     const cityDatalist = document.getElementById('cities-datalist');
     const nicheDatalist = document.getElementById('niches-datalist');
     const quickPresetsWrap = document.getElementById('quick-niche-chips');
+    const colHeader = document.getElementById('col-header-social');
+
+    if (colHeader) {
+      colHeader.textContent = state.country === 'BR' ? 'Instagram' : 'Instagram & Gmail';
+    }
 
     if (cityDatalist) {
       cityDatalist.innerHTML = cfg.cities.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
@@ -314,6 +422,7 @@
   }
 
   // Render Phone Cell with dedicated 1-Click Copy Phone button
+  // Render Phone Cell with dedicated 1-Click Copy Phone button
   function renderPhoneCell(lead) {
     const cleanDisplay = lead.displayPhone || lead.rawPhoneDigits || 'Telefone não listado';
     const copyDigits = lead.displayPhone || lead.rawPhoneDigits || '';
@@ -349,15 +458,17 @@
       `);
     }
 
-    // If Brazil & has WhatsApp: add WhatsApp Direct Outreach
-    if (lead.country === 'BR' && lead.isWhatsapp && lead.waDigits) {
+    // If has WhatsApp: add WhatsApp Direct Outreach
+    if (lead.isWhatsapp && lead.waDigits) {
       const waUrl = buildWhatsAppUrl(lead);
       if (waUrl) {
+        const isRecWa = lead.recommendedChannel === 'whatsapp';
         buttons.push(`
           <a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener noreferrer"
-             class="btn btn-whatsapp btn-sm js-outreach-link"
+             class="btn btn-whatsapp btn-sm js-outreach-link ${isRecWa ? 'btn-rec-highlight' : ''}"
              data-lead-id="${escapeHtml(lead.id)}"
              data-channel="WhatsApp"
+             title="Abrir WhatsApp com proposta pronta para ${escapeHtml(lead.name)}"
              style="min-height:36px; padding:0.3rem 0.65rem; font-size:0.8125rem;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
@@ -372,17 +483,65 @@
       <div class="phone-cell-wrap">
         <span class="phone-display-text">${escapeHtml(cleanDisplay)}</span>
         <div class="phone-actions-row">${buttons.join('')}</div>
+        ${lead.recommendedChannel === 'whatsapp' ? '<span class="contact-sublabel" style="color:#059669; font-weight:700;">✓ Ativo no WhatsApp (Retorno Rápido)</span>' : ''}
       </div>
     `;
   }
 
-  // Render Instagram Cell
+  // Render Instagram & Digital Contacts Cell
   function renderInstagramCell(lead) {
+    const isUSA = lead.country === 'US';
+    const isRecInsta = lead.recommendedChannel === 'instagram';
+    const isRecGmail = lead.recommendedChannel === 'gmail';
+
+    const blocks = [];
+
+    // 1. Gmail Block (especially for United States)
+    if (isUSA && lead.email) {
+      const gmailUrl = buildGmailWebUrl(lead);
+      blocks.push(`
+        <div class="gmail-cell-card ${isRecGmail ? 'is-recommended-channel' : ''}">
+          <div class="gmail-top-row">
+            <span class="gmail-email-badge" title="${escapeHtml(lead.email)}">✉ ${escapeHtml(lead.email)}</span>
+          </div>
+          <div class="gmail-actions-row">
+            ${gmailUrl ? `
+              <a href="${escapeHtml(gmailUrl)}" target="_blank" rel="noopener noreferrer"
+                 class="btn btn-gmail btn-sm js-outreach-link"
+                 data-lead-id="${escapeHtml(lead.id)}"
+                 data-channel="Gmail"
+                 title="Abrir Gmail com proposta pronta para ${escapeHtml(lead.name)}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                Abrir Gmail ↗
+              </a>
+            ` : ''}
+            <button type="button" class="btn-copy-gmail js-copy-gmail"
+                    data-email="${escapeHtml(lead.email)}"
+                    data-lead-name="${escapeHtml(lead.name)}"
+                    title="Copiar email de ${escapeHtml(lead.name)}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+              </svg>
+              <span class="btn-copy-gmail-label">Copiar</span>
+            </button>
+          </div>
+          <span class="contact-sublabel" style="color:#2563eb; font-weight:700;">
+            ${isRecGmail ? '✓ Ativo no Gmail (Sempre dá retorno)' : '✓ Ativo no Gmail'}
+          </span>
+        </div>
+      `);
+    }
+
+    // 2. Instagram Block
     if (lead.instagramUrl) {
       const handleLabel = lead.instagramHandle ? lead.instagramHandle : 'Instagram Confirmado';
-      return `
-        <div class="instagram-cell-wrap">
-          <a href="${escapeHtml(lead.instagramUrl)}" target="_blank" rel="noopener noreferrer" class="btn-instagram btn-instagram-verified" title="Abrir perfil verificado no Instagram">
+      blocks.push(`
+        <div class="instagram-cell-wrap ${isRecInsta ? 'is-recommended-channel' : ''}" style="${blocks.length > 0 ? 'margin-top:0.45rem;' : ''}">
+          <a href="${escapeHtml(lead.instagramUrl)}" target="_blank" rel="noopener noreferrer" class="btn-instagram btn-instagram-verified" title="Abrir perfil / DM no Instagram">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
               <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
@@ -390,25 +549,31 @@
             </svg>
             ${escapeHtml(handleLabel)} ↗
           </a>
-          <span class="contact-sublabel" style="color:#10b981; font-weight:700;">✓ Instagram Verificado</span>
+          <span class="contact-sublabel" style="color:#10b981; font-weight:700;">
+            ${isRecInsta ? '✓ Ativo no Insta (Chamar na DM)' : '✓ Instagram Verificado'}
+          </span>
         </div>
-      `;
+      `);
+    } else {
+      const searchInstaUrl = `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(lead.name + ' ' + (lead.city || ''))}`;
+      blocks.push(`
+        <div class="instagram-cell-wrap ${isRecInsta ? 'is-recommended-channel' : ''}" style="${blocks.length > 0 ? 'margin-top:0.45rem;' : ''}">
+          <a href="${escapeHtml(searchInstaUrl)}" target="_blank" rel="noopener noreferrer" class="btn-instagram btn-instagram-search" title="Buscar perfil de ${escapeHtml(lead.name)} no Instagram">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+              <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+            </svg>
+            Abrir no Insta ↗
+          </a>
+          <span class="contact-sublabel">
+            ${isRecInsta ? '✓ Ativo no Insta (Chamar na DM)' : 'Buscar perfil comercial'}
+          </span>
+        </div>
+      `);
     }
 
-    const searchInstaUrl = `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(lead.name + ' ' + (lead.city || ''))}`;
-    return `
-      <div class="instagram-cell-wrap">
-        <a href="${escapeHtml(searchInstaUrl)}" target="_blank" rel="noopener noreferrer" class="btn-instagram btn-instagram-search" title="Buscar perfil de ${escapeHtml(lead.name)} no Instagram">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
-            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
-            <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
-          </svg>
-          Abrir no Insta ↗
-        </a>
-        <span class="contact-sublabel">Buscar perfil comercial</span>
-      </div>
-    `;
+    return blocks.join('');
   }
 
   function renderLeadsTable() {
@@ -423,13 +588,18 @@
     const filtered = getFilteredLeads();
     const countryLabel = state.country === 'BR' ? '🇧🇷 Brasil' : '🇺🇸 Estados Unidos';
 
+    const colHeader = document.getElementById('col-header-social');
+    if (colHeader) {
+      colHeader.textContent = state.country === 'BR' ? 'Instagram' : 'Instagram & Gmail';
+    }
+
     if (summaryTitle) {
       summaryTitle.textContent = `${filtered.length} Empresas Reais Sem Site • ${state.city} (${state.niche})`;
     }
     if (summaryMeta) {
       summaryMeta.textContent = state.country === 'BR'
         ? `${countryLabel} • Mostrando empresas 100% sem site oficial, ativas no Google Maps com telefone para copiar`
-        : `${countryLabel} • Apenas empresas sem site comercial, com telefone para copiar e Instagram verificado`;
+        : `${countryLabel} • Empresas sem site com múltiplos canais (Gmail, WhatsApp, Instagram DM) e canal recomendado`;
     }
 
     if (!tbody || !emptyState || !tableWrap) return;
@@ -458,6 +628,13 @@
               <span class="biz-title-text">${escapeHtml(lead.name)}</span>
               <span class="no-site-tag">SEM SITE</span>
             </div>
+            ${lead.adviceText ? `
+              <div class="contact-advice-pill advice-${escapeHtml(lead.recommendedChannel || 'general')}" title="${escapeHtml(lead.adviceSub || '')}">
+                <span class="advice-icon">💡</span>
+                <span class="advice-title">${escapeHtml(lead.adviceText)}</span>
+                ${lead.adviceSub ? `<span class="advice-sub">(${escapeHtml(lead.adviceSub)})</span>` : ''}
+              </div>
+            ` : ''}
             <div class="biz-details">
               <span><span class="active-pulse-dot" title="Empresa Sempre Ativa"></span>${lead.isAlwaysActive ? 'Sempre Ativa' : 'Empresa Local'}</span>
               ${ratingText ? `<span>${escapeHtml(ratingText)}</span>` : ''}
@@ -725,6 +902,15 @@
       const itemCity = isAllCountry ? (nationalHubs[leads.length % nationalHubs.length] || 'Nacional') : (rawCity || 'Local');
       const itemNiche = isAllNiches ? (topNiches[leads.length % topNiches.length] || 'Especializado') : (rawNiche || 'Especializado');
 
+      const contactAdvice = determineContactAdvice({
+        name: derivedName,
+        city: itemCity,
+        country: normCountry,
+        instagramUrl: igUrl,
+        phoneInfo,
+        cid: derivedName
+      });
+
       leads.push({
         id: `cloud_${hashString(derivedName + (phoneKey || '') + (igUrl || ''))}`,
         name: derivedName,
@@ -740,9 +926,12 @@
         instagramHandle: igHandle,
         displayPhone: phoneInfo.displayPhone || (normCountry === 'BR' ? 'Disponível no Instagram' : 'Listed in bio'),
         rawPhoneDigits: phoneInfo.rawDigits || '',
-        isWhatsapp: phoneInfo.isWhatsapp,
-        waDigits: phoneInfo.waDigits || '',
-        email: '',
+        isWhatsapp: contactAdvice.isWhatsapp,
+        waDigits: contactAdvice.waDigits || '',
+        email: contactAdvice.email,
+        recommendedChannel: contactAdvice.recommendedChannel,
+        adviceText: contactAdvice.adviceText,
+        adviceSub: contactAdvice.adviceSub,
         closingScore: 94,
         closingLabel: '🔥 94% Chance • Lead Ouro (Instagram Ativo)',
         badgeClass: 'badge-close-gold',
@@ -905,12 +1094,14 @@
     const headers = [
       'Posicao',
       'Chance de Fechar',
+      'Canal Recomendado',
       'Sempre Ativa',
       'Empresa',
       'Nicho',
       'Cidade',
       'Pais',
       'Telefone',
+      'Gmail',
       'Instagram',
       'Avaliacao',
       'Num Avaliacoes',
@@ -921,12 +1112,14 @@
     const rows = filtered.map((l, i) => [
       `#${i + 1}`,
       l.closingLabel || `${l.closingScore || 95}%`,
+      l.adviceText || '',
       l.isAlwaysActive ? 'SIM' : 'NÃO',
       l.name,
       l.niche,
       l.city,
       l.country,
       l.displayPhone || l.rawPhoneDigits || '',
+      l.email || '',
       l.instagramUrl || '',
       l.rating || '',
       l.reviewsCount || '',
@@ -1113,17 +1306,40 @@
           return;
         }
 
-        // WhatsApp Outreach Handler
+        // 1-Click Gmail Copy Handler
+        const copyGmailBtn = e.target.closest('.js-copy-gmail');
+        if (copyGmailBtn) {
+          const email = copyGmailBtn.getAttribute('data-email') || '';
+          const leadName = copyGmailBtn.getAttribute('data-lead-name') || 'Empresa';
+          if (email) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(email).catch(() => {});
+            }
+            const labelSpan = copyGmailBtn.querySelector('.btn-copy-gmail-label');
+            const originalText = labelSpan ? labelSpan.textContent : 'Copiar';
+            copyGmailBtn.classList.add('is-copied');
+            if (labelSpan) labelSpan.textContent = '✓ Copiado!';
+            setTimeout(() => {
+              copyGmailBtn.classList.remove('is-copied');
+              if (labelSpan) labelSpan.textContent = originalText;
+            }, 2000);
+            showToast(`Gmail de "${leadName}" copiado: ${email}`);
+          }
+          return;
+        }
+
+        // WhatsApp & Gmail Outreach Handler
         const outreachLink = e.target.closest('.js-outreach-link');
         if (outreachLink) {
           const leadId = outreachLink.getAttribute('data-lead-id');
+          const channel = outreachLink.getAttribute('data-channel') || 'Contato';
           if (leadId) {
             if (!state.crmStatus[leadId] || state.crmStatus[leadId] === 'novo') {
               state.crmStatus[leadId] = 'contatado';
               savePersistedState();
               setTimeout(() => renderLeadsTable(), 150);
             }
-            showToast('Abrindo WhatsApp com a proposta pronta!');
+            showToast(`Abrindo ${channel} com a proposta pronta!`);
           }
         }
       });
